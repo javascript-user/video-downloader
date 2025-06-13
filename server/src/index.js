@@ -55,19 +55,26 @@ app.get("/api/formats", async (req, res) => {
 app.get("/api/download", (req, res) => {
   const { url, format_id } = req.query;
 
-  // Set up file name and path to OS Downloads dir
-  const safeFilename = `video_${Date.now()}.mp4`;
-  const downloadsDir = path.join(os.homedir(), "Downloads");
-  const filePath = path.join(downloadsDir, safeFilename);
+  if (!url || !format_id)
+    return res.status(400).send("Missing URL or format_id");
 
-  // Choose correct args based on muxed vs separate
-  const args = ["-f", format_id, "-o", filePath, url];
+  const safeFilename = `video_${Date.now()}.mp4`;
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${safeFilename}"`
+  );
+  res.setHeader("Content-Type", "video/mp4");
+
+  const format =
+    typeof format_id === "string" && format_id.trim()
+      ? format_id.trim()
+      : "best[ext=mp4]/best";
+
+  const args = ["-f", format, "-o", "-", url];
 
   const ytdlp = spawn("yt-dlp", args);
 
-  ytdlp.stdout.on("data", (data) => {
-    console.log(`[yt-dlp]: ${data}`);
-  });
+  ytdlp.stdout.pipe(res); // stream output to client browser
 
   ytdlp.stderr.on("data", (data) => {
     console.error(`[yt-dlp error]: ${data}`);
@@ -76,16 +83,8 @@ app.get("/api/download", (req, res) => {
   ytdlp.on("close", (code) => {
     if (code !== 0) {
       console.error(`yt-dlp exited with code ${code}`);
-      return res.status(500).send("Download failed.");
+      // res.end() is likely already called; consider error handling with middleware/logging
     }
-
-    // Successfully downloaded to OS Downloads
-    return res.json({
-      success: true,
-      message: "Downloaded successfully.",
-      path: filePath,
-      filename: safeFilename,
-    });
   });
 });
 
