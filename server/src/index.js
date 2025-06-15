@@ -14,7 +14,7 @@ const {
   buildVideoResponse,
   buildMergedResponse,
   filterMuxedRes,
-} = require("./utils/data");
+} = require("./utils/ytUtils");
 
 app.use(
   cors({
