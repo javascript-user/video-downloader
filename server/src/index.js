@@ -4,8 +4,6 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 
-const path = require("path");
-
 const ytDlpPath = path.resolve(__dirname, "../bin/yt-dlp");
 
 const app = express();
