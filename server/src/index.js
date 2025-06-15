@@ -1,9 +1,12 @@
 require("dotenv").config();
 const express = require("express");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
+
+const path = require("path");
+
+const ytDlpPath = path.resolve(__dirname, "../bin/yt-dlp");
 
 const app = express();
 const cors = require("cors");
@@ -77,7 +80,7 @@ app.get("/api/download", (req, res) => {
 
   const args = ["-f", format, "-o", "-", url];
 
-  const ytdlp = spawn("./bin/yt-dlp", args);
+  const ytdlp = spawn(ytDlpPath, args);
   console.log("Checking yt-dlp exists:", fs.existsSync("./bin/yt-dlp"));
 
   ytdlp.stdout.pipe(res); // stream output to client browser
