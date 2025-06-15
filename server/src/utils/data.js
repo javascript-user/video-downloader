@@ -3,7 +3,7 @@ const { spawn } = require("child_process");
 
 function parseYTDLP(url) {
   return new Promise((resolve, reject) => {
-    const ytdlp = spawn("yt-dlp", ["-j", url]);
+    const ytdlp = spawn("./bin/yt-dlp", ["-j", url]);
 
     let output = "";
     let error = "";
