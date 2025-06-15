@@ -77,7 +77,7 @@ app.get("/api/download", (req, res) => {
 
   const args = ["-f", format, "-o", "-", url];
 
-  const ytdlp = spawn("yt-dlp", args);
+  const ytdlp = spawn("./bin/yt-dlp", args);
 
   ytdlp.stdout.pipe(res); // stream output to client browser
 
