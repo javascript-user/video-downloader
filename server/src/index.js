@@ -78,6 +78,7 @@ app.get("/api/download", (req, res) => {
   const args = ["-f", format, "-o", "-", url];
 
   const ytdlp = spawn("./bin/yt-dlp", args);
+  console.log("Checking yt-dlp exists:", fs.existsSync("./bin/yt-dlp"));
 
   ytdlp.stdout.pipe(res); // stream output to client browser
 
