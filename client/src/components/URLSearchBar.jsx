@@ -69,9 +69,54 @@ export default function URLSearchBar() {
     console.log("Selected Video URL2:", selectedOption);
   };
 
-  const handleClick = async () => {
-    console.log("Selected Video URL1", selectedFormat);
-    return await downloadVideo(selectedFormat);
+  const handleDownloadClick = async () => {
+    if (!selectedFormat) {
+      setError("Please select a format to download.");
+      return;
+    }
+
+    setError(""); // Clear previous errors
+    // setLoading(true);
+
+    try {
+      console.log("Initiating download for format:", selectedFormat);
+      const blob = await downloadVideo(selectedFormat); // Get the blob from your API call
+
+      if (blob) {
+        // Extract filename from selectedFormat if available, otherwise fallback
+        const suggestedFilename = selectedFormat.label
+          ? `${selectedFormat.label.replace(/[^a-zA-Z0-9.-]/g, "_")}.mp4` // Basic sanitize and add .mp4
+          : "downloaded_video.mp4";
+
+        // Create a temporary URL for the Blob
+        const url = window.URL.createObjectURL(blob);
+
+        // Create a hidden link element
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = suggestedFilename; // Set the filename for download
+        document.body.appendChild(a); // Append to body (required for Firefox for programmatic click)
+        a.click(); // Programmatically click the link to trigger the download
+
+        // Clean up the temporary URL and the link element
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a); // Clean up the element after clicking
+
+        // Provide success feedback
+        setError(""); // Clear any previous errors if successful
+        console.log(`Download triggered for: ${suggestedFilename}`);
+      } else {
+        setError("Download failed: No data received.");
+        console.error("Download failed: downloadVideo did not return a blob.");
+      }
+    } catch (err) {
+      console.error("Error during client-side download process:", err);
+      setError(
+        "An error occurred while preparing the download. Please try again."
+      );
+    } finally {
+      // setLoading(false);
+    }
   };
 
   return (
@@ -131,9 +176,13 @@ export default function URLSearchBar() {
               <div className="flex justify-end">
                 <button
                   className="bg-[#5244f7] hover:bg-[#A68FFF] text-white px-6 py-3 w-3/5 rounded-md"
-                  onClick={handleClick}
+                  disabled={!selectedFormat}
+                  onClick={handleDownloadClick}
                 >
-                  Download
+                  <>
+                    {/* <Search size={20} className="mr-2" /> */}
+                    <span> Download</span>
+                  </>
                 </button>
               </div>
             </>

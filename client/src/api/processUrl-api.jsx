@@ -1,5 +1,5 @@
 import axios from "axios";
-const domain = import.meta.env.VITE_API_URL;
+const domain = import.meta.env.VITE_API_URL_DEV;
 
 const getVideoFormats = async (url) => {
   console.log(url);
