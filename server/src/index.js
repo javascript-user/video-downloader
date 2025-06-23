@@ -6,8 +6,17 @@ const { spawn } = require("child_process");
 const cors = require("cors");
 
 const app = express();
+const cookiesPath = path.resolve(__dirname, "../bin/cookies.txt");
+
+const cookiesBase64 = process.env.COOKIES_BASE64;
+// const cookiesPath = path.join(__dirname, "bin", "cookies.txt");
+
+if (cookiesBase64) {
+  fs.mkdirSync(path.dirname(cookiesPath), { recursive: true });
+  fs.writeFileSync(cookiesPath, Buffer.from(cookiesBase64, "base64"));
+  console.log("cookies.txt written from base64 env");
+}
 const ytDlpPath = path.resolve(__dirname, "../bin/yt-dlp");
-const cookiesPath = path.resolve(__dirname, "../cookies.txt");
 
 const {
   parseYTDLP,
@@ -70,21 +79,13 @@ app.get("/api/download", (req, res) => {
   const fallbackFormat =
     "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
 
-  function streamDownload(selectedFormat) {
-    const args = [
-      "--cookies",
-      cookiesPath,
-      "-f",
-      selectedFormat,
-      "-o",
-      "-",
-      url,
-    ];
+  function streamDownload(selectedFormat, isFallback = false) {
+    const args = ["-f", selectedFormat, "-o", "-", url];
 
     if (fs.existsSync(cookiesPath)) {
       args.unshift("--cookies", cookiesPath);
     } else {
-      console.warn("⚠️ cookies.txt missing — may hit 429 errors.");
+      console.warn("cookies.txt missing — may hit 429 errors.");
     }
 
     const dlProc = spawn(ytDlpPath, args);
@@ -122,9 +123,9 @@ app.get("/api/download", (req, res) => {
         console.warn(`yt-dlp exited with code ${code}`);
         console.warn("stderr:", stderr);
 
-        if (selectedFormat !== fallbackFormat) {
+        if (!isFallback) {
           console.log("Falling back to best format...");
-          streamDownload(fallbackFormat); // Retry with fallback
+          streamDownload(fallbackFormat, true); // Retry with fallback
         } else {
           res.status(500).send("Video download failed.");
         }
@@ -133,7 +134,7 @@ app.get("/api/download", (req, res) => {
   }
 
   // Kick off initial download
-  streamDownload(format || fallbackFormat);
+  streamDownload(format || fallbackFormat, false);
 });
 
 app.listen(process.env.PORT, () =>
