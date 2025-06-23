@@ -7,7 +7,7 @@ const cors = require("cors");
 
 const app = express();
 const ytDlpPath = path.resolve(__dirname, "../bin/yt-dlp");
-const cookiesPath = path.resolve(__dirname, "./cookies.txt");
+const cookiesPath = path.resolve(__dirname, "../cookies.txt");
 
 const {
   parseYTDLP,
@@ -71,10 +71,20 @@ app.get("/api/download", (req, res) => {
     "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
 
   function streamDownload(selectedFormat) {
-    const args = ["-f", selectedFormat, "-o", "-", url];
+    const args = [
+      "--cookies",
+      cookiesPath,
+      "-f",
+      selectedFormat,
+      "-o",
+      "-",
+      url,
+    ];
 
     if (fs.existsSync(cookiesPath)) {
       args.unshift("--cookies", cookiesPath);
+    } else {
+      console.warn("⚠️ cookies.txt missing — may hit 429 errors.");
     }
 
     const dlProc = spawn(ytDlpPath, args);
