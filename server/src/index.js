@@ -3,17 +3,12 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
-
-const ytDlpPath = path.resolve(__dirname, "../bin/yt-dlp");
-
-const DOWNLOAD_FOLDER = "downloads";
-
-if (!fs.existsSync(DOWNLOAD_FOLDER)) {
-  fs.mkdirSync(DOWNLOAD_FOLDER);
-}
+const cors = require("cors");
 
 const app = express();
-const cors = require("cors");
+const ytDlpPath = path.resolve(__dirname, "../bin/yt-dlp");
+const cookiesPath = path.resolve(__dirname, "./cookies.txt");
+
 const {
   parseYTDLP,
   filterFormats,
@@ -29,9 +24,6 @@ app.use(
     credentials: true,
   })
 );
-
-app.use(express.static("public"));
-
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -71,153 +63,67 @@ app.get("/api/formats", async (req, res) => {
 });
 
 // Route to handle video download requests
-app.get("/api/download", async (req, res) => {
-  const videoUrl = req.query.url;
-  const browserType = "none"; // 'chrome', 'firefox', 'edge' or 'none'
+app.get("/api/download", (req, res) => {
+  const { url, format } = req.query;
+  if (!url) return res.status(400).send("Missing video URL");
 
-  if (!videoUrl) {
-    return res.status(400).send("Error: Please provide a video URL.");
-  }
+  const fallbackFormat =
+    "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best";
 
-  // Generate a unique ID for this download session to manage temporary files
-  const uniqueId = new Date();
-  const outputTemplate = path.join(
-    DOWNLOAD_FOLDER,
-    `${uniqueId}_%(title)s.%(ext)s`
-  );
+  function streamDownload(selectedFormat) {
+    const args = ["-f", selectedFormat, "-o", "-", url];
 
-  let ytDlpArgs = [
-    "-f",
-    "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-    "-o",
-    outputTemplate,
-    "--no-playlist",
-    "--restrict-filenames",
-    videoUrl,
-  ];
+    if (fs.existsSync(cookiesPath)) {
+      args.unshift("--cookies", cookiesPath);
+    }
 
-  // Add browser cookie option if provided
-  if (browserType !== "none") {
-    ytDlpArgs.unshift(`--cookies-from-browser=${browserType}`);
-    console.log(`Using cookies from browser: ${browserType}`);
-  }
+    const dlProc = spawn(ytDlpPath, args);
+    let stderr = "";
 
-  console.log(`Initiating download for: ${videoUrl}`);
-  console.log(`yt-dlp command: yt-dlp ${ytDlpArgs.join(" ")}`);
-
-  try {
-    const ytDlpProcess = spawn(ytDlpPath, ytDlpArgs);
-
-    let stdoutBuffer = "";
-    let stderrBuffer = "";
-
-    // Capture stdout from yt-dlp (for general info/progress)
-    ytDlpProcess.stdout.on("data", (data) => {
-      stdoutBuffer += data.toString();
+    dlProc.stderr.on("data", (data) => {
+      stderr += data.toString();
     });
 
-    // Capture stderr from yt-dlp (for errors)
-    ytDlpProcess.stderr.on("data", (data) => {
-      stderrBuffer += data.toString();
-      console.error(`yt-dlp stderr: ${data.toString().trim()}`);
+    dlProc.stdout.on("error", (err) => {
+      console.error("stdout error:", err);
     });
 
-    // Handle process exit
-    ytDlpProcess.on("close", async (code) => {
-      if (code === 0) {
-        console.log(`yt-dlp finished successfully for ${videoUrl}.`);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="download.${
+        selectedFormat.includes("audio") ? "m4a" : "mp4"
+      }"`
+    );
+    res.setHeader("Content-Type", "application/octet-stream");
 
-        // Find the actual downloaded file based on the uniqueId prefix
-        const downloadedFiles = fs.readdirSync(DOWNLOAD_FOLDER);
-        let actualDownloadedFilePath = null;
+    dlProc.stdout.pipe(res);
 
-        for (const file of downloadedFiles) {
-          if (file.startsWith(uniqueId)) {
-            actualDownloadedFilePath = path.join(DOWNLOAD_FOLDER, file);
-            break;
-          }
-        }
+    res.on("close", () => {
+      dlProc.kill("SIGKILL");
+    });
 
-        if (
-          actualDownloadedFilePath &&
-          fs.existsSync(actualDownloadedFilePath)
-        ) {
-          const originalFilename = path
-            .basename(actualDownloadedFilePath)
-            .substring(uniqueId.length + 1); // Remove uniqueId prefix
-          console.log(`Sending file to client: ${originalFilename}`);
+    dlProc.on("error", (err) => {
+      console.error("yt-dlp spawn failed:", err);
+      res.status(500).send("Internal server error");
+    });
 
-          // Send the file to the client and automatically set Content-Disposition for download
-          res.download(actualDownloadedFilePath, originalFilename, (err) => {
-            if (err) {
-              if (!res.headersSent) {
-                console.error("Error sending file to client:", err);
-                res.status(500).send("Error sending file to your browser.");
-              } else {
-                console.error(
-                  "Error sending file (client disconnected?):",
-                  err
-                );
-              }
-            } else {
-              console.log(
-                `File ${originalFilename} successfully sent to client.`
-              );
-            }
+    dlProc.on("close", (code) => {
+      if (code !== 0) {
+        console.warn(`yt-dlp exited with code ${code}`);
+        console.warn("stderr:", stderr);
 
-            // IMPORTANT: Clean up the temporary file from the server
-            fs.unlink(actualDownloadedFilePath, (unlinkErr) => {
-              if (unlinkErr) {
-                console.error("Error deleting temporary file:", unlinkErr);
-              } else {
-                console.log(
-                  `Deleted temporary file: ${actualDownloadedFilePath}`
-                );
-              }
-            });
-          });
+        if (selectedFormat !== fallbackFormat) {
+          console.log("Falling back to best format...");
+          streamDownload(fallbackFormat); // Retry with fallback
         } else {
-          console.error(
-            `Error: Could not find downloaded file for ${uniqueId}. yt-dlp output might be in stdout/stderr.`
-          );
-          res
-            .status(500)
-            .send(
-              `Error: Video download failed on server. No file found. Server logs may have details.`
-            );
+          res.status(500).send("Video download failed.");
         }
-      } else {
-        // yt-dlp exited with an error code
-        console.error(
-          `yt-dlp process exited with code ${code} for ${videoUrl}.`
-        );
-        console.error(`yt-dlp stdout:\n${stdoutBuffer}`);
-        console.error(`yt-dlp stderr:\n${stderrBuffer}`);
-        res
-          .status(500)
-          .send(
-            `Error downloading video: ${
-              stderrBuffer || "Unknown yt-dlp error."
-            }`
-          );
       }
     });
-
-    // Handle errors if the yt-dlp process itself cannot be spawned (e.g., command not found)
-    ytDlpProcess.on("error", (err) => {
-      console.error("Failed to start yt-dlp process:", err);
-      res
-        .status(500)
-        .send(
-          `Failed to start yt-dlp process. Make sure 'yt-dlp' is installed and in your server's PATH. Error: ${err.message}`
-        );
-    });
-  } catch (error) {
-    console.error("An unexpected server error occurred:", error);
-    res
-      .status(500)
-      .send(`An unexpected server error occurred: ${error.message}`);
   }
+
+  // Kick off initial download
+  streamDownload(format || fallbackFormat);
 });
 
 app.listen(process.env.PORT, () =>
