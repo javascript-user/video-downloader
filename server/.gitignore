@@ -1,4 +1,4 @@
 node_module/
 .env
 # .gitignore
-# bin/cookies.txt
+bin/cookies.txt
