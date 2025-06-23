@@ -1,4 +1,3 @@
-import "./App.css";
 import URLSearchBar from "./components/URLSearchBar";
 
 function App() {

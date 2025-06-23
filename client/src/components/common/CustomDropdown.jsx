@@ -12,7 +12,7 @@ const CustomDropdown = ({ options, onSelect }) => {
   };
 
   return (
-    <div className="relative inline-block text-left w-64">
+    <div className="relative inline-block text-left w-72">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}

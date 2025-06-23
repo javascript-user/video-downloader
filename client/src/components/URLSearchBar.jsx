@@ -2,9 +2,11 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import { downloadVideo, getVideoFormats } from "../api/processUrl-api";
 import { FaLink } from "react-icons/fa";
+import { IoMdDownload } from "react-icons/io";
 import CustomDropdown from "./common/CustomDropdown";
 import YouTubeEmbed from "./YouTubeEmbed";
 import { calculateTotalSize } from "./utils/sizeUtils";
+import Loading from "./common/Loading";
 
 export default function URLSearchBar() {
   const [selectedFormat, setSelectedFormat] = useState(null);
@@ -12,6 +14,7 @@ export default function URLSearchBar() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [download, setDownload] = useState(false);
 
   const validateURL = (input) => {
     console.log(url);
@@ -76,16 +79,16 @@ export default function URLSearchBar() {
     }
 
     setError(""); // Clear previous errors
-    // setLoading(true);
+    setDownload(true);
 
     try {
       console.log("Initiating download for format:", selectedFormat);
-      const blob = await downloadVideo(selectedFormat); // Get the blob from your API call
+      const blob = await downloadVideo(selectedFormat);
 
       if (blob) {
         // Extract filename from selectedFormat if available, otherwise fallback
         const suggestedFilename = selectedFormat.label
-          ? `${selectedFormat.label.replace(/[^a-zA-Z0-9.-]/g, "_")}.mp4` // Basic sanitize and add .mp4
+          ? `${selectedFormat.label.replace(/[^a-zA-Z0-9.-]/g, "_")}.mp4`
           : "downloaded_video.mp4";
 
         // Create a temporary URL for the Blob
@@ -115,7 +118,7 @@ export default function URLSearchBar() {
         "An error occurred while preparing the download. Please try again."
       );
     } finally {
-      // setLoading(false);
+      setDownload(false);
     }
   };
 
@@ -127,7 +130,10 @@ export default function URLSearchBar() {
 
       <div className="mb-6">
         <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden shadow-sm">
-          <FaLink size={20} className="text-[#AAAAAA] ml-4 font-extralight" />
+          <FaLink
+            size={20}
+            className="text-[#AAAAAA] ml-4 font-extralight hover:animate-loading"
+          />
           <input
             type="text"
             value={url}
@@ -175,14 +181,18 @@ export default function URLSearchBar() {
               </div>
               <div className="flex justify-end">
                 <button
-                  className="bg-[#5244f7] hover:bg-[#A68FFF] text-white px-6 py-3 w-3/5 rounded-md"
-                  disabled={!selectedFormat}
+                  className="bg-[#5244f7] hover:bg-[#A68FFF] text-white px-6 py-3 w-3/6 rounded-md flex justify-center"
+                  disabled={download}
                   onClick={handleDownloadClick}
                 >
-                  <>
-                    {/* <Search size={20} className="mr-2" /> */}
-                    <span> Download</span>
-                  </>
+                  {download ? (
+                    <Loading />
+                  ) : (
+                    <div className="flex justify-center gap-4">
+                      <IoMdDownload size={25} className="" />
+                      <span>Download</span>
+                    </div>
+                  )}
                 </button>
               </div>
             </>
