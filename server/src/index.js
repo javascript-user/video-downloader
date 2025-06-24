@@ -45,7 +45,13 @@ app.get("/api/formats", async (req, res) => {
   if (!url) return res.status(400).json({ error: "Missing URL" });
 
   try {
-    const json = await parseYTDLP(url);
+    const args = ["-j", url];
+    if (fs.existsSync(cookiesPath)) {
+      args.unshift("--cookies", cookiesPath);
+    } else {
+      console.warn("cookies.txt missing — may hit 429 errors.");
+    }
+    const json = await parseYTDLP(args);
     // console.log(json);
     const formats = json.formats || [];
     const { videoOnly, audioOnly, muxed } = filterFormats(formats);

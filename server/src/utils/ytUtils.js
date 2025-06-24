@@ -4,9 +4,9 @@ const { spawn } = require("child_process");
 
 const ytDlpPath = path.resolve(__dirname, "../../bin/yt-dlp");
 
-function parseYTDLP(url) {
+function parseYTDLP(args) {
   return new Promise((resolve, reject) => {
-    const ytdlp = spawn(ytDlpPath, ["-j", url]);
+    const ytdlp = spawn(ytDlpPath, args);
 
     let output = "";
     let error = "";
