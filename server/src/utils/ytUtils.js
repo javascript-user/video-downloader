@@ -4,7 +4,23 @@ const { spawn } = require("child_process");
 
 const ytDlpPath = path.resolve(__dirname, "../../bin/yt-dlp");
 
+const cookiesPath = path.resolve(__dirname, "../../bin/cookies.txt");
+
+function buildYTDLArgs(url, extraArgs = []) {
+  const args = [...extraArgs, url];
+
+  if (fs.existsSync(cookiesPath)) {
+    args.unshift("--cookies", cookiesPath);
+  } else {
+    console.warn("cookies.txt missing — 429 risk");
+  }
+
+  return args;
+}
+
 function parseYTDLP(args) {
+  console.log("Cookies exists:", fs.existsSync(cookiesPath));
+  console.log("Args:", args);
   return new Promise((resolve, reject) => {
     const ytdlp = spawn(ytDlpPath, args);
 
@@ -151,4 +167,5 @@ module.exports = {
   buildVideoResponse,
   buildMergedResponse,
   filterMuxedRes,
+  buildYTDLArgs,
 };

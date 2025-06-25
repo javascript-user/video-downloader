@@ -25,6 +25,7 @@ const {
   buildVideoResponse,
   buildMergedResponse,
   filterMuxedRes,
+  buildYTDLArgs,
 } = require("./utils/ytUtils");
 
 app.use(
@@ -45,12 +46,9 @@ app.get("/api/formats", async (req, res) => {
   if (!url) return res.status(400).json({ error: "Missing URL" });
 
   try {
-    const args = ["-j", url];
-    if (fs.existsSync(cookiesPath)) {
-      args.unshift("--cookies", cookiesPath);
-    } else {
-      console.warn("cookies.txt missing — may hit 429 errors.");
-    }
+    const args = buildYTDLArgs(url, ["-j"]);
+    console.log("Cookies exists:", fs.existsSync(cookiesPath));
+    console.log("Args:", args);
     const json = await parseYTDLP(args);
     // console.log(json);
     const formats = json.formats || [];
