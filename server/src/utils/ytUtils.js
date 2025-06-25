@@ -5,7 +5,8 @@ const { spawn } = require("child_process");
 
 const ytDlpPath = path.resolve(__dirname, "../../bin/yt-dlp");
 
-const cookiesPath = path.resolve(__dirname, "../../bin/cookies.txt");
+// const cookiesPath = path.resolve(__dirname, "../../bin/cookies.txt");
+const cookiesPath = "/tmp/yt-cookies.txt";
 
 function buildYTDLArgs(url, extraArgs = []) {
   const args = [...extraArgs, url];

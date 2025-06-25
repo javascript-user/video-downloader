@@ -7,7 +7,8 @@ const cors = require("cors");
 
 const app = express();
 const secretPath = "/etc/secrets/COOKIES_BASE64";
-const cookiesPath = path.resolve(__dirname, "../bin/cookies.txt");
+// const cookiesPath = path.resolve(__dirname, "../bin/cookies.txt");
+const cookiesPath = "/tmp/yt-cookies.txt";
 
 if (fs.existsSync(secretPath)) {
   const base64 = fs.readFileSync(secretPath, "utf8").trim();
