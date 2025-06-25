@@ -1,5 +1,6 @@
 // ytUtils.js
 const path = require("path");
+const fs = require("fs");
 const { spawn } = require("child_process");
 
 const ytDlpPath = path.resolve(__dirname, "../../bin/yt-dlp");
