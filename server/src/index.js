@@ -16,9 +16,9 @@ if (fs.existsSync(secretPath)) {
 
   fs.mkdirSync(path.dirname(cookiesPath), { recursive: true });
   fs.writeFileSync(cookiesPath, decoded);
-  console.log("✅ cookies.txt written from secret file");
+  console.log("cookies.txt written from secret file");
 } else {
-  console.warn("⚠️ COOKIES_BASE64 secret file not found");
+  console.warn("COOKIES_BASE64 secret file not found");
 }
 
 const ytDlpPath = path.resolve(__dirname, "../bin/yt-dlp");
@@ -52,10 +52,8 @@ app.get("/api/formats", async (req, res) => {
 
   try {
     const args = buildYTDLArgs(url, ["-j"]);
-    console.log("Cookies exists:", fs.existsSync(cookiesPath));
-    console.log("Args:", args);
     const json = await parseYTDLP(args);
-    // console.log(json);
+    console.log(json);
     const formats = json.formats || [];
     const { videoOnly, audioOnly, muxed } = filterFormats(formats);
 
