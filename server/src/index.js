@@ -6,16 +6,20 @@ const { spawn } = require("child_process");
 const cors = require("cors");
 
 const app = express();
+const secretPath = "/etc/secrets/COOKIES_BASE64";
 const cookiesPath = path.resolve(__dirname, "../bin/cookies.txt");
 
-const cookiesBase64 = process.env.COOKIES_BASE64;
-// const cookiesPath = path.join(__dirname, "bin", "cookies.txt");
+if (fs.existsSync(secretPath)) {
+  const base64 = fs.readFileSync(secretPath, "utf8").trim();
+  const decoded = Buffer.from(base64, "base64").toString("utf8");
 
-if (cookiesBase64) {
   fs.mkdirSync(path.dirname(cookiesPath), { recursive: true });
-  fs.writeFileSync(cookiesPath, Buffer.from(cookiesBase64, "base64"));
-  console.log("cookies.txt written from base64 env");
+  fs.writeFileSync(cookiesPath, decoded);
+  console.log("✅ cookies.txt written from secret file");
+} else {
+  console.warn("⚠️ COOKIES_BASE64 secret file not found");
 }
+
 const ytDlpPath = path.resolve(__dirname, "../bin/yt-dlp");
 
 const {
