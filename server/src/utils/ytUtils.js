@@ -21,8 +21,6 @@ function buildYTDLArgs(url, extraArgs = []) {
 }
 
 function parseYTDLP(args) {
-  console.log("Cookies exists:", fs.existsSync(cookiesPath));
-  console.log("Args:", args);
   return new Promise((resolve, reject) => {
     const ytdlp = spawn(ytDlpPath, args);
 
