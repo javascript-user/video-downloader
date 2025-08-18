@@ -49,6 +49,12 @@ export default function DownloadProgressBar({
             `Size: ${data.size}, Speed: ${data.speed}, ETA: ${data.eta}`
           );
           setStatus("Downloading...");
+          if (data.percent >= 100) {
+            setStatus("Download complete");
+            setProgressDetails("");
+            onDownloadComplete && onDownloadComplete();
+            eventSourceRef.current.close();
+          }
           break;
         case "complete":
           setProgress(100);
