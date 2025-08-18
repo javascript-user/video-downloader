@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
-import { downloadVideo, getVideoFormats } from "../api/processUrl-api";
+import { getVideoFormats } from "../api/processUrl-api"; // We'll modify this to no longer directly download
 import { FaLink } from "react-icons/fa";
 import { IoMdDownload } from "react-icons/io";
 import CustomDropdown from "./common/CustomDropdown";
 import YouTubeEmbed from "./YouTubeEmbed";
 import { calculateTotalSize } from "./utils/sizeUtils";
 import Loading from "./common/Loading";
+import DownloadProgressBar from "./DownloadProgressBar"; // Import the new component
 
 export default function URLSearchBar() {
   const [selectedFormat, setSelectedFormat] = useState(null);
@@ -14,10 +15,13 @@ export default function URLSearchBar() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
-  const [download, setDownload] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false); // Renamed from 'download' for clarity
+  const [currentDownloadId, setCurrentDownloadId] = useState(null); // New state for download ID
+  const [downloadError, setDownloadError] = useState(""); // For errors from the download process itself
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL_DEV;
 
   const validateURL = (input) => {
-    console.log(url);
     try {
       new URL(input);
       return true;
@@ -28,6 +32,12 @@ export default function URLSearchBar() {
 
   const handleSubmit = async () => {
     setError("");
+    setResult(null); // Clear previous results
+    setSelectedFormat(null); // Clear selected format
+    setIsDownloading(false); // Reset download state
+    setCurrentDownloadId(null); // Reset download ID
+    setDownloadError(""); // Clear download errors
+
     if (!url.trim()) {
       setError("Please enter a URL");
       return;
@@ -53,12 +63,14 @@ export default function URLSearchBar() {
         filesize: calculateTotalSize(
           el.isMuxed ? el.filesize : el.filesize_video + el.filesize_audio
         ),
+        totalSize: el.isMuxed
+          ? el.filesize
+          : el.filesize_video + el.filesize_audio,
         format: el.format,
         label: el.label,
       }));
 
-      setResult({ formatData, videoOptions }); // store both raw data and dropdown options
-      // console.log(result);
+      setResult({ formatData, videoOptions });
       setLoading(false);
     } catch (err) {
       setError("Failed to process URL. Please try again.");
@@ -69,7 +81,6 @@ export default function URLSearchBar() {
 
   const handleSelect = (selectedOption) => {
     setSelectedFormat(selectedOption);
-    console.log("Selected Video URL2:", selectedOption);
   };
 
   const handleDownloadClick = async () => {
@@ -78,68 +89,76 @@ export default function URLSearchBar() {
       return;
     }
 
-    setError(""); // Clear previous errors
-    setDownload(true);
+    setError(""); // Clear general errors
+    setDownloadError(""); // Clear specific download errors
+    setIsDownloading(true);
+
+    // Generate a unique download ID for this session
+    const newDownloadId =
+      Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+    setCurrentDownloadId(newDownloadId);
 
     try {
       console.log("Initiating download for format:", selectedFormat);
-      const blob = await downloadVideo(selectedFormat);
 
-      if (blob) {
-        // Extract filename from selectedFormat if available, otherwise fallback
-        const suggestedFilename = selectedFormat.label
-          ? `${selectedFormat.label.replace(/[^a-zA-Z0-9.-]/g, "_")}.mp4`
-          : "downloaded_video.mp4";
+      // Construct the download URL including the format and the new downloadId
+      const downloadUrl = `${API_BASE_URL}/api/download?url=${encodeURIComponent(
+        url
+      )}&format=${encodeURIComponent(selectedFormat.format_id)}&totalSize=${
+        selectedFormat.totalSize || ""
+      }&downloadId=${newDownloadId}`;
 
-        // Create a temporary URL for the Blob
-        const url = window.URL.createObjectURL(blob);
+      // Trigger the file download by redirecting the browser
+      // This will cause the browser to open the download dialog
+      window.location.href = downloadUrl;
 
-        // Create a hidden link element
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = suggestedFilename; // Set the filename for download
-        document.body.appendChild(a); // Append to body (required for Firefox for programmatic click)
-        a.click(); // Programmatically click the link to trigger the download
-
-        // Clean up the temporary URL and the link element
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a); // Clean up the element after clicking
-
-        // Provide success feedback
-        setError(""); // Clear any previous errors if successful
-        console.log(`Download triggered for: ${suggestedFilename}`);
-      } else {
-        setError("Download failed: No data received.");
-        console.error("Download failed: downloadVideo did not return a blob.");
-      }
+      // The rest of the download progress will be handled by the SSE in DownloadProgressBar
+      // We don't wait for a blob here.
     } catch (err) {
-      console.error("Error during client-side download process:", err);
-      setError(
+      console.error("Error initiating client-side download:", err);
+      setDownloadError(
         "An error occurred while preparing the download. Please try again."
       );
-    } finally {
-      setDownload(false);
+      setIsDownloading(false);
+      setCurrentDownloadId(null);
     }
   };
 
+  // Callback for DownloadProgressBar to reset UI on completion/error
+  const handleProgressComplete = () => {
+    setIsDownloading(false);
+    setCurrentDownloadId(null);
+    setDownloadError("");
+    console.log(
+      "Download process finished (either complete or external trigger)"
+    );
+    // Optionally, clear the selected format or result after download
+    // setSelectedFormat(null);
+    // setResult(null);
+  };
+
+  const handleProgressError = (message) => {
+    setDownloadError(message);
+    setIsDownloading(false);
+    setCurrentDownloadId(null);
+    console.log("Download process encountered an error via SSE:", message);
+  };
+
   return (
-    <div className="w-full max-w-2xl mx-auto p-4">
+    <div className="w-full max-w-2xl mx-auto p-4 bg-gray-900 rounded-lg shadow-lg">
       <h2 className="text-2xl font-bold mb-4 text-center text-white">
-        URL Analyzer
+        YouTube Video Downloader
       </h2>
 
       <div className="mb-6">
-        <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden shadow-sm">
-          <FaLink
-            size={20}
-            className="text-[#AAAAAA] ml-4 font-extralight hover:animate-loading"
-          />
+        <div className="flex items-center border border-gray-700 rounded-lg overflow-hidden shadow-sm bg-gray-800">
+          <FaLink size={20} className="text-gray-400 ml-4 font-extralight" />
           <input
             type="text"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste URL (e.g., https://example.com)"
-            className="flex-grow px-4 py-3 text-sm text-white focus:outline-none placeholder:text-[#AAAAAA] placeholder:bg-black"
+            placeholder="Paste YouTube video URL (e.g., https://www.youtube.com/watch?v=dQw4w9WgXcQ)"
+            className="flex-grow px-4 py-3 text-sm text-white bg-gray-800 focus:outline-none placeholder:text-gray-500"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -149,8 +168,8 @@ export default function URLSearchBar() {
           />
           <button
             onClick={handleSubmit}
-            disabled={loading}
-            className="bg-[#6C4CFF] hover:bg-[#A68FFF] text-white px-6 py-3 flex items-center transition-colors"
+            disabled={loading || isDownloading}
+            className="bg-[#6C4CFF] hover:bg-[#A68FFF] text-white px-6 py-3 flex items-center transition-colors duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               <span className="animate-pulse">Processing...</span>
@@ -163,49 +182,70 @@ export default function URLSearchBar() {
           </button>
         </div>
 
-        {error && <div className="mt-2 text-red-600 text-sm">{error}</div>}
+        {error && <div className="mt-2 text-red-500 text-sm">{error}</div>}
       </div>
 
       {result && (
-        <div className="bg-[#0d0d0d] p-4 rounded-lg border border-gray-200">
-          {/* <h3 className="font-semibold text-lg mb-2">Available Formats</h3> */}
-
+        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
           {result.videoOptions.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 items-baseline-end ">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                 <YouTubeEmbed src={url} />
-                <CustomDropdown
-                  options={result.videoOptions}
-                  onSelect={handleSelect}
-                />
+                <div className="flex flex-col gap-4">
+                  <CustomDropdown
+                    options={result.videoOptions}
+                    onSelect={handleSelect}
+                    disabled={isDownloading} // Disable dropdown during download
+                  />
+                  {selectedFormat && (
+                    <p className="text-gray-400 text-sm">
+                      Selected: {selectedFormat.label} (Total Size:{" "}
+                      {selectedFormat.filesize || "N/A"})
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end mt-4">
                 <button
-                  className="bg-[#5244f7] hover:bg-[#A68FFF] text-white px-6 py-3 w-3/6 rounded-md flex justify-center"
-                  disabled={download}
+                  className="bg-[#5244f7] hover:bg-[#A68FFF] text-white px-6 py-3 w-full md:w-3/6 rounded-md flex justify-center items-center gap-2 transition-colors duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isDownloading || !selectedFormat} // Disable if downloading or no format selected
                   onClick={handleDownloadClick}
                 >
-                  {download ? (
-                    <Loading />
+                  {isDownloading ? (
+                    <Loading /> // Or a "Preparing Download..." text
                   ) : (
-                    <div className="flex justify-center gap-4">
-                      <IoMdDownload size={25} className="" />
+                    <>
+                      <IoMdDownload size={25} />
                       <span>Download</span>
-                    </div>
+                    </>
                   )}
                 </button>
               </div>
             </>
           ) : (
-            <p>No downloadable formats available.</p>
+            <p className="text-white">No downloadable formats available.</p>
           )}
         </div>
       )}
 
-      <div className="mt-6 text-sm text-gray-600">
+      {isDownloading && currentDownloadId && (
+        <div className="mt-6">
+          <DownloadProgressBar
+            downloadId={currentDownloadId}
+            onDownloadComplete={handleProgressComplete}
+            onDownloadError={handleProgressError}
+          />
+        </div>
+      )}
+
+      {downloadError && (
+        <div className="mt-2 text-red-500 text-sm">{downloadError}</div>
+      )}
+
+      <div className="mt-6 text-sm text-gray-400 text-center">
         <p>
-          Enter any URL to analyze it. The URL will be sent to the backend for
-          processing.
+          Enter a YouTube video URL to fetch available formats and download your
+          desired resolution.
         </p>
       </div>
     </div>
